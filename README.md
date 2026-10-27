@@ -77,3 +77,4 @@ nest generate service <name>
 - Use `@` aliases for imports (e.g., `@config/config.service`)
 - Run `npm run format` before committing
 - Follow NestJS module pattern
+# NestMonolithBackendCourse
