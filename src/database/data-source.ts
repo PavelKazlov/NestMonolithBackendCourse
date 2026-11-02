@@ -11,7 +11,9 @@ import { DataSource } from 'typeorm';
  * this file exists solely so the CLI can load the same connection
  * settings from .env without booting the whole Nest application.
  */
-export const dataSource = new DataSource({
+// TypeORM CLI требует, чтобы файл экспортировал ровно один DataSource,
+// поэтому здесь только default-экспорт (named + default ломали `migration:*`).
+export default new DataSource({
   type: 'postgres',
   host: process.env.POSTGRES_HOST,
   port: Number(process.env.POSTGRES_PORT),
@@ -27,5 +29,3 @@ export const dataSource = new DataSource({
   synchronize: false,
   logging: process.env.POSTGRES_LOGGING === 'true',
 });
-
-export default dataSource;

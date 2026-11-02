@@ -1,4 +1,17 @@
-# Backend Template
+# Backend Course — NestJS monolith
+
+Учебный проект курса Innowise Back End (группа A1). Запросы для ручной проверки — в [`http/`](http/).
+
+## Quick start
+
+```bash
+cp .env.example .env && cp .env.test.example .env.test
+docker compose up -d          # Postgres :5433, Mailpit :1025 / UI :8025
+npm ci
+npm run start:dev             # API :3007, Swagger :3007/docs
+```
+
+## Template notes
 
 NestJS backend project template. HTTP kernel is **Fastify** (`@nestjs/platform-fastify`), not Express — use Fastify plugins and types (`NestFastifyApplication`, `app.register(...)`) in `src/main.ts`. Compression (`@fastify/compress`) and cookies (`@fastify/cookie`) are already registered.
 
@@ -10,7 +23,8 @@ npm run start:prod   # Production
 npm run build        # Build
 npm run lint         # Lint & fix
 npm run test         # Unit tests
-npm run test:e2e     # E2E tests
+npm run test:e2e     # E2E tests (БД app_test, .env.test)
+npm run test:cov:all # Coverage: unit + e2e
 ```
 
 ## Project Structure
@@ -19,9 +33,13 @@ npm run test:e2e     # E2E tests
 src/
 ├── core/
 │   ├── config/      # App configuration (env variables)
+│   ├── crypto/      # HMAC, constant-time compare, OTP/token generation
+│   ├── errors/      # AppException + global exception filter
+│   ├── logger/      # pino structured logs, X-Request-Id
+│   ├── mail/        # MailSender port + SMTP adapter
 │   ├── database/    # TypeORM + PostgreSQL connection
-│   ├── health/      # Health check endpoints
-│   └── app/         # Root module
+│   ├── health/      # /health, /health/live, /health/ready
+│   └── app/         # Root module + app.setup (shared by main.ts and e2e)
 ├── database/        # TypeORM CLI data-source and migrations
 ├── modules/         # Feature modules
 └── main.ts          # Entry point
@@ -39,7 +57,7 @@ PostgreSQL and TypeORM are already wired in. Use them for new modules — no ext
 - **Schema:** migrations in `src/database/migrations/`. `POSTGRES_SYNCHRONIZE` is `false` by default — do not rely on auto-sync
 
 ```bash
-npm run migration:generate   # Generate from entity changes
+npm run migration:generate --name=CreateUsers   # Generate from entity changes
 npm run migration:run        # Apply pending migrations
 npm run migration:revert     # Roll back the last migration
 npm run migration:show       # List applied / pending
@@ -77,4 +95,3 @@ nest generate service <name>
 - Use `@` aliases for imports (e.g., `@config/config.service`)
 - Run `npm run format` before committing
 - Follow NestJS module pattern
-# NestMonolithBackendCourse
