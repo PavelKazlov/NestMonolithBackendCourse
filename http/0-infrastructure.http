@@ -1,0 +1,25 @@
+### Запросы для ручной проверки шага 0.
+### Открываются расширением REST Client (VS Code) или HTTP Client (JetBrains).
+
+@baseUrl = http://localhost:3007
+
+### Liveness — процесс жив
+GET {{baseUrl}}/health/live
+
+### Readiness — БД и проверки модулей
+GET {{baseUrl}}/health/ready
+
+### 404 в едином формате ошибки + X-Request-Id
+GET {{baseUrl}}/no-such-route
+
+### Свой X-Request-Id переиспользуется
+GET {{baseUrl}}/health/live
+X-Request-Id: my-trace-123
+
+### CORS preflight от разрешённого origin
+OPTIONS {{baseUrl}}/health/live
+Origin: http://localhost:4200
+Access-Control-Request-Method: POST
+
+### OpenAPI-схема
+GET {{baseUrl}}/docs-json

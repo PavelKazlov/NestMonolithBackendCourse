@@ -1,18 +1,72 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
+
+import { ConfigModule } from './config.module';
 import { ConfigService } from './config.service';
+import { configValidationSchema } from './config.validation';
 
-describe('ConfigService', () => {
-  let service: ConfigService;
+/** Минимальный валидный набор переменных окружения. */
+const baseEnv = {
+  PORT: '3007',
+  NODE_ENV: 'development',
+  COOKIE_SECRET: 'secret',
+  POSTGRES_HOST: 'localhost',
+  POSTGRES_PORT: '5432',
+  POSTGRES_USER: 'u',
+  POSTGRES_PASSWORD: 'p',
+  POSTGRES_DB: 'db',
+  SMTP_HOST: 'localhost',
+  SMTP_PORT: '1025',
+  SMTP_FROM: 'App <no-reply@example.test>',
+};
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [ConfigService],
-    }).compile();
+describe('configValidationSchema', () => {
+  const validate = (env: Record<string, string>) =>
+    configValidationSchema.validate(env, {
+      allowUnknown: true,
+    });
 
-    service = module.get<ConfigService>(ConfigService);
+  it('приводит строки из env к типам и подставляет значения по умолчанию', () => {
+    const { error, value } = validate(baseEnv);
+
+    expect(error).toBeUndefined();
+    expect(value).toMatchObject({
+      PORT: 3007,
+      SMTP_SECURE: false,
+      LOG_LEVEL: 'info',
+      SWAGGER_ENABLED: true,
+    });
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('SWAGGER_ENABLED по умолчанию выключен в production', () => {
+    expect(
+      validate({ ...baseEnv, NODE_ENV: 'production' }).value?.SWAGGER_ENABLED,
+    ).toBe(false);
+  });
+
+  it('ошибка при отсутствии обязательной переменной', () => {
+    const withoutSmtp: Record<string, string> = { ...baseEnv };
+    delete withoutSmtp.SMTP_HOST;
+
+    expect(validate(withoutSmtp).error?.message).toMatch(/SMTP_HOST/);
+  });
+});
+
+describe('ConfigService', () => {
+  const saved = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  it('get() отдаёт значения уже приведённых типов', async () => {
+    Object.assign(process.env, baseEnv);
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [ConfigModule],
+    }).compile();
+    const config = moduleRef.get(ConfigService);
+
+    expect(config.get('SMTP_PORT')).toBe(1025);
+    expect(config.get('SMTP_SECURE')).toBe(false);
   });
 });
