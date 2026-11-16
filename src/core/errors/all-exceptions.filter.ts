@@ -7,7 +7,12 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { QueryFailedError } from 'typeorm';
 
+import {
+  describeQueryError,
+  isDatabaseUnavailable,
+} from '@/core/database/pg-errors';
 import { AppException } from './app.exception';
 
 /**
@@ -37,9 +42,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const { status, body } = this.toResponse(exception);
 
     if (status >= 500) {
-      // Для 5xx пишем исключение целиком: стек нужен разработчику, но только в логе.
+      // Для 5xx пишем исключение: стек нужен разработчику, но только в логе.
+      // Ошибку SQL — без значений параметров (см. describeQueryError).
       this.logger.error(
-        { err: exception, code: body.code },
+        {
+          err:
+            exception instanceof QueryFailedError
+              ? describeQueryError(exception as QueryFailedError)
+              : exception,
+          code: body.code,
+        },
         'Request failed with server error',
       );
     }
@@ -99,7 +111,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return { status, body };
     }
 
-    // 3. Всё остальное: баг, упавшая БД, исключение библиотеки. Наружу не отдаём ничего.
+    // 3. База недоступна → 503, а не 500 (спека 1.2: «недоступность базы
+    //    даёт 503»). 503 значит «временно, повторите позже»; клиент не
+    //    должен трактовать это как ошибку своих данных или сессии.
+    if (isDatabaseUnavailable(exception)) {
+      return {
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        body: {
+          code: 'service_unavailable',
+          message: 'Service temporarily unavailable',
+        },
+      };
+    }
+
+    // 4. Всё остальное: баг, исключение библиотеки. Наружу не отдаём ничего.
     return {
       status: HttpStatus.INTERNAL_SERVER_ERROR,
       body: { code: 'internal_error', message: 'Internal server error' },

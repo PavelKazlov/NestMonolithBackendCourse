@@ -1,0 +1,221 @@
+### Запросы для демонстрации задания 1.2 «Аутентификация».
+### Открываются расширением REST Client (VS Code) или HTTP Client (JetBrains).
+### Оба клиента запоминают cookies из Set-Cookie и отправляют их в следующих
+### запросах, учитывая Path: refresh_token уходит только на /auth/refresh.
+### Проверено: curl и Chromium отправляют Secure-cookie на http://localhost.
+###
+### Подготовка:
+###   docker compose up -d          — Postgres (:5433) и Mailpit (UI http://localhost:8025)
+###   npm run start:dev             — миграции применятся при старте
+### Пользователь: зарегистрируйте и подтвердите его через http/1.0-registration.http
+### (или выключите REGISTRATION_CONFIRMATION_ENABLED). Ниже — demo@example.com / секрет12.
+###
+### Режим входа задаётся в .env и требует перезапуска:
+###   LOGIN_EMAIL_CONFIRMATION_ENABLED=false                     — сценарий 1 (сразу cookies)
+###   LOGIN_EMAIL_CONFIRMATION_ENABLED=true + METHOD=otp         — сценарий 2
+###   LOGIN_EMAIL_CONFIRMATION_ENABLED=true + METHOD=magic_link  — сценарий 3
+### Глобальный throttler (THROTTLE_GLOBAL_LIMIT=10 за 10 с) тоже действует:
+### не отправляйте запросы слишком часто.
+
+@baseUrl = http://localhost:3007
+@email = demo@example.com
+@password = секрет12
+
+########################################################################
+### Сценарий 1. Вход без подтверждения → 204 и две cookies.
+########################################################################
+
+### Вход. Email нормализуется (trim + нижний регистр), пароль — нет.
+### Ответ: 204, тела нет; два Set-Cookie:
+###   access_token  … Max-Age=900;     Path=/;             HttpOnly; Secure; SameSite=Strict
+###   refresh_token … Max-Age=2592000; Path=/auth/refresh; HttpOnly; Secure; SameSite=Strict
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "  Demo@Example.COM ",
+  "password": "{{password}}"
+}
+
+### Обновление пары. Refresh берётся ТОЛЬКО из cookie (Path=/auth/refresh).
+### Ответ: 204 и новая пара cookies.
+POST {{baseUrl}}/auth/refresh
+
+### Refresh в теле или в Authorization не принимается → 401 invalid_session,
+### если cookie нет (выполните после logout, чтобы увидеть 401).
+POST {{baseUrl}}/auth/refresh
+Authorization: Bearer not-accepted-here
+Content-Type: application/json
+
+{ "refresh_token": "not-accepted-here" }
+
+### Выход: 204 и две очищающие cookies (Max-Age=0, Expires 1970) с теми же
+### Path, Secure, SameSite. Работает и без cookies — идемпотентно.
+POST {{baseUrl}}/auth/logout
+
+### После logout у ЭТОГО клиента cookie нет → 401 invalid_session.
+### (Скопированный ранее refresh при этом остался бы действующим до exp —
+### ограничение stateless-схемы, см. docs/tasks/1.2, «Инвалидация токенов».)
+POST {{baseUrl}}/auth/refresh
+
+########################################################################
+### Нейтральный 401: одинаковый ответ для всех причин.
+########################################################################
+
+### Неверный пароль → 401 invalid_credentials
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "wrong-password1"
+}
+
+### Неизвестный email → тот же 401, тот же текст
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "nobody@example.com",
+  "password": "wrong-password1"
+}
+
+### Неверный формат → 400 validation_failed
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "not-an-email",
+  "password": ""
+}
+
+### Лимит неуспехов: повторите «неверный пароль» 5 раз — шестой запрос
+### (даже с верным паролем) получит 429 rate_limited и Retry-After ≈ 900 с.
+### Блокируется только пара email + IP, а не аккаунт.
+
+########################################################################
+### Сценарий 2. Вход с OTP (LOGIN_EMAIL_CONFIRMATION_ENABLED=true, METHOD=otp).
+########################################################################
+
+### Вход → 202 { confirmationRequired, method: "otp", attemptId, expiresInSeconds: 600, resendAfterSeconds: 60 }
+### Cookies НЕТ. Код — в письме (Mailpit: http://localhost:8025).
+# @name loginOtp
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Повторный вход раньше 60 с → 429 resend_too_soon, Retry-After. Письма нет.
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Неверный код → 400 confirmation_invalid (attempts + 1).
+### Пятый неверный ввод — тоже 400, но попытка гасится; следующий → 429 attempts_exhausted.
+@attemptId = {{loginOtp.response.body.attemptId}}
+POST {{baseUrl}}/auth/login/confirm
+Content-Type: application/json
+
+{
+  "attemptId": "{{attemptId}}",
+  "code": "000000"
+}
+
+### Верный код из письма → 204 и две cookies.
+POST {{baseUrl}}/auth/login/confirm
+Content-Type: application/json
+
+{
+  "attemptId": "{{attemptId}}",
+  "code": "ВСТАВЬТЕ_КОД_ИЗ_ПИСЬМА"
+}
+
+### Resend: раньше 60 с → 429; позже → 202, новый код, старый перестаёт работать,
+### attempts = 0. Подтверждённая попытка → 400.
+POST {{baseUrl}}/auth/login/resend
+Content-Type: application/json
+
+{
+  "attemptId": "{{attemptId}}"
+}
+
+########################################################################
+### Сценарий 3. Вход с magic link (METHOD=magic_link).
+########################################################################
+
+### Вход → 202, method: "magic_link". В письме ссылка
+###   http://localhost:5174/login/confirm#token=<attemptId>.<secret>
+### Токен во ФРАГМЕНТЕ: браузер не отправит его серверу и в Referer.
+# @name loginLink
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Подтверждение только POST'ом: страница фронтенда прочитала бы location.hash
+### и отправила токен в теле. Вставьте часть ссылки после #token=
+### (символы UUID, точка и base64url в URL не экранируются).
+POST {{baseUrl}}/auth/login/confirm
+Content-Type: application/json
+
+{
+  "token": "ВСТАВЬТЕ_ТОКЕН_ИЗ_ССЫЛКИ"
+}
+
+### Неверный секрет ссылки → 400 (счётчика у ссылки нет: 256 бит не перебрать).
+POST {{baseUrl}}/auth/login/confirm
+Content-Type: application/json
+
+{
+  "token": "{{loginLink.response.body.attemptId}}.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+}
+
+### Токен ссылки к OTP-попытке и наоборот → 400: попытка ищется по attemptId И способу.
+
+########################################################################
+### Origin / CSRF (глобальный guard на POST/PUT/PATCH/DELETE).
+########################################################################
+
+### Чужой origin → 403 csrf_rejected, даже с заголовком.
+POST {{baseUrl}}/auth/logout
+Origin: http://evil.example
+X-CSRF-Protection: 1
+
+### Доверенный origin (TRUSTED_ORIGINS) без заголовка → 403 csrf_rejected.
+POST {{baseUrl}}/auth/logout
+Origin: http://localhost:5174
+
+### Доверенный origin с X-CSRF-Protection: 1 → 204.
+POST {{baseUrl}}/auth/logout
+Origin: http://localhost:5174
+X-CSRF-Protection: 1
+
+### Свой origin (APP_ORIGIN, same-origin) → 204 без заголовка.
+POST {{baseUrl}}/auth/logout
+Origin: http://localhost:3007
+
+### Без Origin (не браузер: curl, этот клиент) → 204.
+POST {{baseUrl}}/auth/logout
+
+### CORS preflight от доверенного origin: 204, Access-Control-Allow-Origin
+### ровно этот origin, Allow-Credentials: true, Allow-Headers с X-CSRF-Protection.
+OPTIONS {{baseUrl}}/auth/refresh
+Origin: http://localhost:5174
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: x-csrf-protection
+
+########################################################################
+### Readiness: auth-tokens = up (подпись и проверка JWT работают).
+########################################################################
+
+GET {{baseUrl}}/health/ready

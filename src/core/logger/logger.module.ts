@@ -79,6 +79,15 @@ import { RequestWithId } from './request-id';
                 '*.passwordHash',
                 '*.token',
                 '*.secretHash',
+                // 1.2: секреты входа и параметры SQL-запросов (там бывают
+                // email и хеш пароля, см. describeQueryError в pg-errors.ts).
+                '*.secret',
+                '*.accessToken',
+                '*.refreshToken',
+                '*.email',
+                'err.parameters',
+                'err.driverError',
+                'err.detail',
               ],
               censor: '[Redacted]',
             },

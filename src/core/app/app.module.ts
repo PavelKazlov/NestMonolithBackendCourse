@@ -6,6 +6,7 @@ import { ConfigModule } from '@/core/config/config.module';
 import { DatabaseModule } from '@/core/database/database.module';
 import { HealthModule } from '@/core/health/health.module';
 import { LoggerModule } from '@/core/logger/logger.module';
+import { SecurityModule } from '@/core/security/security.module';
 import { ThrottlerModule } from '@/core/throttler/throttler.module';
 
 /**
@@ -27,6 +28,7 @@ import { UsersModule } from '@/modules/users/users.module';
     HealthModule,
     ThrottlerModule,
     AuditModule,
+    SecurityModule,
     // Планировщик фоновых задач (@Cron, @Interval). Понадобится для воркеров:
     // удаление пользователей (1.6), очистка хранилища (1.5), сохранение и
     // retention результатов трансформаций (2.3, 2.4).

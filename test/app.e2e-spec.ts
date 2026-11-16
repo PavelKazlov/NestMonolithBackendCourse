@@ -102,14 +102,15 @@ describe('App infrastructure (e2e)', () => {
         method: 'OPTIONS',
         url: '/health/live',
         headers: {
-          origin: 'http://localhost:4200',
+          // Список доверенных origin берётся из TRUSTED_ORIGINS (.env.test), шаг 1.2.
+          origin: 'http://localhost:5174',
           'access-control-request-method': 'POST',
         },
       });
 
       expect(res.statusCode).toBe(204);
       expect(res.headers['access-control-allow-origin']).toBe(
-        'http://localhost:4200',
+        'http://localhost:5174',
       );
       expect(res.headers['access-control-allow-credentials']).toBe('true');
     });
@@ -141,7 +142,11 @@ describe('App infrastructure (e2e)', () => {
       const res = await app.inject({ method: 'GET', url: '/health/ready' });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json()).toEqual({ status: 'ok', checks: { database: 'up' } });
+      // auth-tokens регистрирует TokenService (1.2): подпись и проверка JWT работают.
+      expect(res.json()).toEqual({
+        status: 'ok',
+        checks: { database: 'up', 'auth-tokens': 'up' },
+      });
     });
   });
 });
