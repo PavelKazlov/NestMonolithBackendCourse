@@ -64,16 +64,18 @@ export async function configureApp(app: NestFastifyApplication): Promise<void> {
   await app.register(compression);
 
   // CORS: какие чужие origin (фронтенды) браузер пустит к нашему API.
+  // Список берётся из конфигурации `TRUSTED_ORIGINS` (спека 1.2: «CORS
+  // перечисляет точный origin, разрешает credentials и заголовок
+  // X-CSRF-Protection»). Тот же список использует CsrfGuard.
   // Wildcard `*` с credentials запрещён и браузером, и спекой 1.2.
-  // Список origin перенесём в конфиг на шаге 1.2.
   app.enableCors({
-    origin: [
-      'http://localhost:5174',
-      'http://localhost:4200',
-      'http://localhost:8080',
-    ],
+    origin: config.get('TRUSTED_ORIGINS'),
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    // credentials: true → `Access-Control-Allow-Credentials: true`. Без него
+    // браузер не отдаст странице ответ на запрос с `credentials: "include"`
+    // и не сохранит cookies из Set-Cookie.
     credentials: true,
+    allowedHeaders: ['Content-Type', 'X-CSRF-Protection', 'X-Request-Id'],
     preflightContinue: false,
     optionsSuccessStatus: 204,
   });

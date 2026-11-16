@@ -3,6 +3,10 @@ import { ExecutionContext, SetMetadata } from '@nestjs/common';
 /** Имена именованных лимитов. Совпадают с `name` в `ThrottlerModule`. */
 export enum RateLimit {
   Registration = 'registration',
+  /** 1.2: `POST /auth/login` — 30 запросов с IP за минуту. */
+  Login = 'login',
+  /** 1.2: `POST /auth/refresh` — 30 запросов с IP за минуту. */
+  Refresh = 'refresh',
 }
 
 const RATE_LIMITS_KEY = 'app:rate-limits';

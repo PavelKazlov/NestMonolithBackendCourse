@@ -7,6 +7,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { Logger } from '@nestjs/common';
+import { QueryFailedError } from 'typeorm';
+
 import { AllExceptionsFilter } from './all-exceptions.filter';
 import { AppException } from './app.exception';
 
@@ -113,6 +116,48 @@ describe('AllExceptionsFilter', () => {
       message: 'Internal server error',
       requestId: 'req-1',
     });
+  });
+});
+
+describe('AllExceptionsFilter: база данных (1.2)', () => {
+  const filter = new AllExceptionsFilter();
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('недоступная БД → 503 service_unavailable, а не 500', () => {
+    const { host, reply } = makeHost();
+
+    filter.catch(
+      Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:5433'), {
+        code: 'ECONNREFUSED',
+      }),
+      host,
+    );
+
+    expect(reply.status).toHaveBeenCalledWith(503);
+    expect(reply.send).toHaveBeenCalledWith({
+      code: 'service_unavailable',
+      message: 'Service temporarily unavailable',
+      requestId: 'req-1',
+    });
+  });
+
+  it('ошибка SQL пишется в лог без значений параметров', () => {
+    const { host } = makeHost();
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+
+    filter.catch(
+      new QueryFailedError(
+        'SELECT * FROM users WHERE email = $1',
+        ['secret@example.com'],
+        Object.assign(new Error('boom'), { code: '42P01' }),
+      ),
+      host,
+    );
+
+    const logged = JSON.stringify(error.mock.calls[0][0]);
+    expect(logged).toContain('42P01');
+    expect(logged).not.toContain('secret@example.com');
   });
 });
 

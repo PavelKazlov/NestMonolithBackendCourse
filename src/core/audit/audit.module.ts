@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 
+import { AuditIds } from './audit-ids';
 import { AuditLogger } from './audit-logger';
 
 /**
@@ -8,7 +9,7 @@ import { AuditLogger } from './audit-logger';
  */
 @Global()
 @Module({
-  providers: [AuditLogger],
-  exports: [AuditLogger],
+  providers: [AuditLogger, AuditIds],
+  exports: [AuditLogger, AuditIds],
 })
 export class AuditModule {}

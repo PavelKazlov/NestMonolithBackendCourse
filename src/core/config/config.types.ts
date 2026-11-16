@@ -64,9 +64,9 @@ export interface Config {
   SMTP_FROM: string;
 
   /**
-   * Ключ HMAC для секретов из писем (коды OTP, токены magic link).
-   * Общий для всех «челленджей»: регистрация (1.0), вход (1.2), смена email (1.5).
-   * Разные сценарии разделяются префиксом в данных HMAC, а не разными ключами.
+   * Ключ HMAC для секретов из писем регистрации (1.0).
+   * Вход (1.2) использует СВОЙ ключ `LOGIN_CHALLENGE_HMAC_KEY`: так требует
+   * спека 1.2 («отдельный случайный ключ»).
    */
   CHALLENGE_HMAC_KEY: string;
 
@@ -80,4 +80,33 @@ export interface Config {
   /** Rate limit на register и resend: не больше LIMIT запросов с одного IP за TTL мс. */
   REGISTRATION_RATE_LIMIT?: number;
   REGISTRATION_RATE_TTL?: number;
+
+  /**
+   * Authentication (задание 1.2)
+   */
+  /** Ключ подписи access JWT (HS256). Не короче 32 байт. */
+  JWT_ACCESS_SECRET: string;
+  /** Ключ подписи refresh JWT. Обязательно отличается от access. */
+  JWT_REFRESH_SECRET: string;
+  /** Ключ HMAC для OTP и magic link входа. */
+  LOGIN_CHALLENGE_HMAC_KEY: string;
+  /** Ключ HMAC для необратимого служебного id email в журнале аудита. */
+  AUDIT_HMAC_KEY: string;
+  /** Claim `iss`: кто выпустил токен. */
+  JWT_ISSUER: string;
+  /** Claim `aud`: для кого токен предназначен. */
+  JWT_AUDIENCE: string;
+  LOGIN_EMAIL_CONFIRMATION_ENABLED?: boolean;
+  LOGIN_EMAIL_CONFIRMATION_METHOD?: 'otp' | 'magic_link';
+  /** Страница фронтенда для magic link входа. Токен дописывается во фрагмент `#token=`. */
+  LOGIN_CONFIRM_URL?: string;
+  /** Публичный origin самого API, например `https://api.example.com`. */
+  APP_ORIGIN: string;
+  /** Доверенные frontend-origin (уже разобранный список). */
+  TRUSTED_ORIGINS: string[];
+  AUTH_COOKIE_SAME_SITE?: 'strict' | 'none';
+  LOGIN_RATE_LIMIT?: number;
+  LOGIN_RATE_TTL?: number;
+  REFRESH_RATE_LIMIT?: number;
+  REFRESH_RATE_TTL?: number;
 }
