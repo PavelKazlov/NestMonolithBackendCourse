@@ -44,6 +44,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
       );
     }
 
+    // Если ошибка говорит «повторите через N секунд» (429 rate limit, ранний
+    // resend), дублируем это в стандартный заголовок Retry-After (RFC 9110).
+    // Поле в теле удобно фронтенду, а заголовок понимают HTTP-клиенты и прокси.
+    if (typeof body.retryAfterSeconds === 'number') {
+      void reply.header('Retry-After', String(body.retryAfterSeconds));
+    }
+
     void reply.status(status).send({ ...body, requestId: request.id });
   }
 

@@ -38,6 +38,11 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
+      // `expect(mock.method).toHaveBeenCalled()` — штатный приём Jest, а не
+      // потеря `this`: метод не вызывается, а проверяется как объект-мок.
+      '@typescript-eslint/unbound-method': 'off',
+      // `res.json()` в e2e возвращает any: аргументы из ответа неизбежно any.
+      '@typescript-eslint/no-unsafe-argument': 'off',
     },
   },
 );

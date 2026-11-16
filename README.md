@@ -6,6 +6,8 @@
 
 ```bash
 cp .env.example .env && cp .env.test.example .env.test
+# CHALLENGE_HMAC_KEY обязателен: заглушку из примера приложение отвергает.
+# Впишите в оба файла свой ключ: openssl rand -base64 48
 docker compose up -d          # Postgres :5433, Mailpit :1025 / UI :8025
 npm ci
 npm run start:dev             # API :3007, Swagger :3007/docs
@@ -39,9 +41,11 @@ src/
 │   ├── mail/        # MailSender port + SMTP adapter
 │   ├── database/    # TypeORM + PostgreSQL connection
 │   ├── health/      # /health, /health/live, /health/ready
+│   ├── audit/       # AuditLogger: security events without secrets
+│   ├── throttler/   # Rate limiting: named limits, 429 + Retry-After
 │   └── app/         # Root module + app.setup (shared by main.ts and e2e)
 ├── database/        # TypeORM CLI data-source and migrations
-├── modules/         # Feature modules
+├── modules/         # Feature modules: users, auth (registration 1.0)
 └── main.ts          # Entry point
 ```
 

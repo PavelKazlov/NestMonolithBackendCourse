@@ -24,7 +24,11 @@ export default new DataSource({
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
 
   migrationsTableName: 'migrations',
-  migrations: [__dirname + '/migrations/*.migration{.ts,.js}'],
+  // Файлы миграций: `<timestamp>-<Name>.ts`. Суффикс `.migration` в имени
+  // файла не используем: CLI берёт имя класса из имени файла, и класс
+  // получался `Name.migration123` — невалидный идентификатор TypeScript.
+  // `.d.ts` из dist TypeORM отбрасывает сам.
+  migrations: [__dirname + '/migrations/*{.ts,.js}'],
 
   synchronize: false,
   logging: process.env.POSTGRES_LOGGING === 'true',

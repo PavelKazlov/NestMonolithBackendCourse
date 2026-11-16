@@ -15,6 +15,7 @@ function makeHost() {
   const reply = {
     status: jest.fn().mockReturnThis(),
     send: jest.fn().mockReturnThis(),
+    header: jest.fn().mockReturnThis(),
   };
   const host = {
     switchToHttp: () => ({
@@ -50,6 +51,16 @@ describe('AllExceptionsFilter', () => {
       retryAfterSeconds: 42,
       requestId: 'req-1',
     });
+    // retryAfterSeconds дублируется в стандартный заголовок.
+    expect(reply.header).toHaveBeenCalledWith('Retry-After', '42');
+  });
+
+  it('без retryAfterSeconds заголовок Retry-After не ставится', () => {
+    const { host, reply } = makeHost();
+
+    filter.catch(new NotFoundException(), host);
+
+    expect(reply.header).not.toHaveBeenCalled();
   });
 
   it('ошибка ValidationPipe → validation_failed с details', () => {

@@ -2,6 +2,10 @@ import Joi from 'joi';
 
 import { Config } from './config.types';
 
+/** Заглушка ключа из `.env.example`. С ней приложение не стартует. */
+export const CHALLENGE_HMAC_KEY_PLACEHOLDER =
+  'change-me-to-a-random-string-of-at-least-32-chars';
+
 /**
  * Joi-схема переменных окружения.
  *
@@ -69,4 +73,40 @@ export const configValidationSchema = Joi.object<Config>({
   SMTP_USER: Joi.string().allow('').optional(),
   SMTP_PASSWORD: Joi.string().allow('').optional(),
   SMTP_FROM: Joi.string().required(),
+
+  /**
+   * Ключ HMAC для секретов из писем.
+   * Обязателен и без значения по умолчанию: ключ «по умолчанию» оказался бы
+   * в git, и любой, кто читал репозиторий, мог бы посчитать HMAC сам.
+   * Минимум 32 символа: ключ HMAC-SHA256 должен быть не короче его выхода
+   * (32 байта). Сгенерировать: `openssl rand -base64 48`.
+   * Значение-заглушку из `.env.example` отвергаем: иначе `cp .env.example .env`
+   * тихо запустил бы приложение с ключом, который знает весь интернет.
+   */
+  CHALLENGE_HMAC_KEY: Joi.string()
+    .min(32)
+    .invalid(CHALLENGE_HMAC_KEY_PLACEHOLDER)
+    .required(),
+
+  /**
+   * Registration (задание 1.0)
+   */
+  // Флаг сценария «регистрация». По умолчанию выключен: аккаунт активен сразу.
+  REGISTRATION_CONFIRMATION_ENABLED: Joi.boolean().optional().default(false),
+  // Способ подтверждения выбирает сервер, а не клиент (спека 1.0, «Модель»).
+  REGISTRATION_CONFIRMATION_METHOD: Joi.string()
+    .valid('otp', 'magic_link')
+    .optional()
+    .default('otp'),
+  REGISTRATION_CONFIRM_URL: Joi.string()
+    .uri({ scheme: ['http', 'https'] })
+    .optional()
+    .default('http://localhost:5174/register/confirm'),
+  // «Числовой порог регистрации задаётся в конфигурации» (спека 1.0, раздел 1.6).
+  REGISTRATION_RATE_LIMIT: Joi.number().integer().min(1).optional().default(5),
+  REGISTRATION_RATE_TTL: Joi.number()
+    .integer()
+    .min(1)
+    .optional()
+    .default(60000),
 });

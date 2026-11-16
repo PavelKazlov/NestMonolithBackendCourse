@@ -2,7 +2,10 @@ import { Test } from '@nestjs/testing';
 
 import { ConfigModule } from './config.module';
 import { ConfigService } from './config.service';
-import { configValidationSchema } from './config.validation';
+import {
+  CHALLENGE_HMAC_KEY_PLACEHOLDER,
+  configValidationSchema,
+} from './config.validation';
 
 /** Минимальный валидный набор переменных окружения. */
 const baseEnv = {
@@ -17,6 +20,7 @@ const baseEnv = {
   SMTP_HOST: 'localhost',
   SMTP_PORT: '1025',
   SMTP_FROM: 'App <no-reply@example.test>',
+  CHALLENGE_HMAC_KEY: 'k'.repeat(48),
 };
 
 describe('configValidationSchema', () => {
@@ -48,6 +52,45 @@ describe('configValidationSchema', () => {
     delete withoutSmtp.SMTP_HOST;
 
     expect(validate(withoutSmtp).error?.message).toMatch(/SMTP_HOST/);
+  });
+
+  describe('CHALLENGE_HMAC_KEY', () => {
+    it('обязателен: без ключа приложение не стартует', () => {
+      const env: Record<string, string> = { ...baseEnv };
+      delete env.CHALLENGE_HMAC_KEY;
+
+      expect(validate(env).error?.message).toMatch(/CHALLENGE_HMAC_KEY/);
+    });
+
+    it('короче 32 символов — ошибка', () => {
+      expect(
+        validate({ ...baseEnv, CHALLENGE_HMAC_KEY: 'short' }).error?.message,
+      ).toMatch(/at least 32/);
+    });
+
+    it('заглушка из .env.example отвергается', () => {
+      expect(
+        validate({
+          ...baseEnv,
+          CHALLENGE_HMAC_KEY: CHALLENGE_HMAC_KEY_PLACEHOLDER,
+        }).error,
+      ).toBeDefined();
+    });
+  });
+
+  it('регистрация: по умолчанию без подтверждения, OTP, лимит 5 за 60 с', () => {
+    expect(validate(baseEnv).value).toMatchObject({
+      REGISTRATION_CONFIRMATION_ENABLED: false,
+      REGISTRATION_CONFIRMATION_METHOD: 'otp',
+      REGISTRATION_RATE_LIMIT: 5,
+      REGISTRATION_RATE_TTL: 60000,
+    });
+  });
+
+  it('неизвестный способ подтверждения — ошибка', () => {
+    expect(
+      validate({ ...baseEnv, REGISTRATION_CONFIRMATION_METHOD: 'sms' }).error,
+    ).toBeDefined();
   });
 });
 

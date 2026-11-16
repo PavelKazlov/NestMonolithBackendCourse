@@ -1,0 +1,164 @@
+### Запросы для ручной демонстрации задания 1.0 «Регистрация».
+### Открываются расширением REST Client (VS Code) или HTTP Client (JetBrains).
+###
+### Подготовка:
+###   docker compose up -d          — Postgres (:5433) и Mailpit (UI http://localhost:8025)
+###   npm run start:dev             — миграции применятся при старте (POSTGRES_MIGRATIONS_RUN=true)
+### Режим задаётся в .env и требует перезапуска:
+###   REGISTRATION_CONFIRMATION_ENABLED=false             — сценарий 1 (сразу active)
+###   REGISTRATION_CONFIRMATION_ENABLED=true + METHOD=otp — сценарий 2
+###   REGISTRATION_CONFIRMATION_ENABLED=true + METHOD=magic_link — сценарий 3
+### Rate limit: REGISTRATION_RATE_LIMIT (по умолчанию 5) запросов за минуту на register и resend.
+
+@baseUrl = http://localhost:3007
+@email = demo@example.com
+
+########################################################################
+### Сценарий 1. Подтверждение выключено → 201, пользователь active.
+########################################################################
+
+### Регистрация. Email нормализуется: пробелы обрезаются, регистр — нижний.
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "  Demo@Example.COM ",
+  "password": "секрет12"
+}
+
+### Повтор на тот же адрес в другом регистре → 409 email_taken
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "DEMO@example.com",
+  "password": "секрет12"
+}
+
+########################################################################
+### Сценарий 2. OTP: 202 → код в Mailpit → confirm.
+########################################################################
+
+### Регистрация → 202, в теле attemptId, кода в ответе НЕТ.
+# @name registerOtp
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "otp-{{$timestamp}}@example.com",
+  "password": "секрет12"
+}
+
+### Подтверждение кодом. Код возьмите из письма в Mailpit (http://localhost:8025).
+@attemptId = {{registerOtp.response.body.attemptId}}
+POST {{baseUrl}}/auth/register/confirm
+Content-Type: application/json
+
+{
+  "attemptId": "{{attemptId}}",
+  "code": "000000"
+}
+
+### Неверный код → 400 confirmation_invalid. Пять неверных подряд гасят попытку,
+### шестой запрос даже с верным кодом → 429 attempts_exhausted.
+POST {{baseUrl}}/auth/register/confirm
+Content-Type: application/json
+
+{
+  "attemptId": "{{attemptId}}",
+  "code": "111111"
+}
+
+### Resend сразу после регистрации → 429 resend_too_soon + заголовок Retry-After.
+### Через 60 секунд → 202: новый код, TTL заново, счётчик попыток = 0, attemptId тот же.
+POST {{baseUrl}}/auth/register/resend
+Content-Type: application/json
+
+{
+  "email": "{{registerOtp.request.body.email}}"
+}
+
+########################################################################
+### Сценарий 3. Magic link: 202 → ссылка в Mailpit → POST токена.
+########################################################################
+
+### Регистрация → 202, method: magic_link.
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "link-{{$timestamp}}@example.com",
+  "password": "секрет12"
+}
+
+### Ссылка в письме: http://localhost:5174/register/confirm#token=<43 символа>.
+### Открытие ссылки (GET) ничего не меняет. Активирует только POST с токеном
+### (его отправляет страница фронтенда). Вставьте токен из письма:
+POST {{baseUrl}}/auth/register/confirm
+Content-Type: application/json
+
+{
+  "token": "PASTE_TOKEN_FROM_MAILPIT_PASTE_TOKEN_FROM_MA"
+}
+
+### GET по адресу confirm → 404: такого маршрута нет, токен не расходуется.
+GET {{baseUrl}}/auth/register/confirm?token=anything
+
+########################################################################
+### Ошибки валидации → 400 validation_failed (details — что исправить).
+########################################################################
+
+### Некорректный email
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "not-an-email",
+  "password": "секрет12"
+}
+
+### Пароль не проходит политику (нет цифры, короче 8)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "short"
+}
+
+### Лишнее поле → 400 (forbidNonWhitelisted). Роль назначает сервер, а не клиент.
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "секрет12",
+  "role": "admin"
+}
+
+### Токен вместе с attemptId и code → 400
+POST {{baseUrl}}/auth/register/confirm
+Content-Type: application/json
+
+{
+  "token": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "attemptId": "00000000-0000-4000-8000-000000000000",
+  "code": "123456"
+}
+
+### Неизвестная попытка → 400 confirmation_invalid (как неверный код)
+POST {{baseUrl}}/auth/register/confirm
+Content-Type: application/json
+
+{
+  "attemptId": "00000000-0000-4000-8000-000000000000",
+  "code": "123456"
+}
+
+########################################################################
+### Сбой SMTP → 503: `docker compose stop mailpit`, зарегистрируйтесь,
+### затем `docker compose start mailpit` и через 60 с вызовите resend.
+########################################################################
+
+### OpenAPI: операции регистрации видны в Swagger UI на /docs
+GET {{baseUrl}}/docs-json

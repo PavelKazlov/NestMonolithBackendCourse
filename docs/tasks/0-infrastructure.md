@@ -25,7 +25,7 @@
 - В Jest не было маппинга алиаса `@/` → любой unit-тест с импортом `@/...` падал.
 - Unit-тесты health и config не давали зависимостей → падали на старте.
 - `src/database/data-source.ts` экспортировал DataSource дважды (named и default), из-за этого TypeORM CLI отказывался работать.
-- Шаблон миграций (`*.migration.ts`) не совпадал с тем, что генерирует CLI. Теперь имя задаётся так: `npm run migration:generate --name=CreateUsers` → `…-CreateUsers.migration.ts`.
+- Шаблон миграций (`*.migration.ts`) не совпадал с тем, что генерирует CLI. Теперь имя задаётся так: `npm run migration:generate --name=CreateUsers` → `<timestamp>-CreateUsers.ts`. (Уточнено на шаге 1.0: суффикс `.migration` попадал в имя класса и ломал компиляцию, поэтому от него отказались.)
 - CLI TypeORM не понимал алиасы `@/`. Добавлен `-r tsconfig-paths/register`.
 - `ConfigService.get()` возвращал всё как `string`. Флаг `HEALTH_CHECK_ENABLED=false` из-за этого превращался в строку `"false"`, а она в `if` — истина.
 

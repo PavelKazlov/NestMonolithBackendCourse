@@ -28,7 +28,8 @@ import { ConfigService } from '@/core/config/config.service';
 
         migrationsTableName: 'migrations',
         migrations: [
-          __dirname + '/../../database/migrations/*.migration{.ts,.js}',
+          // См. комментарий в src/database/data-source.ts про имена файлов.
+          __dirname + '/../../database/migrations/*{.ts,.js}',
         ],
         migrationsRun: String(config.get('POSTGRES_MIGRATIONS_RUN')) === 'true',
 
