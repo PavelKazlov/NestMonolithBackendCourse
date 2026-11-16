@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 
+import { AuditModule } from '@/core/audit/audit.module';
 import { ConfigModule } from '@/core/config/config.module';
 import { DatabaseModule } from '@/core/database/database.module';
 import { HealthModule } from '@/core/health/health.module';
@@ -12,6 +13,7 @@ import { ThrottlerModule } from '@/core/throttler/throttler.module';
  * Application modules
  *
  */
+import { AuthModule } from '@/modules/auth/auth.module';
 import { UsersModule } from '@/modules/users/users.module';
 
 /**
@@ -24,6 +26,7 @@ import { UsersModule } from '@/modules/users/users.module';
     DatabaseModule,
     HealthModule,
     ThrottlerModule,
+    AuditModule,
     // Планировщик фоновых задач (@Cron, @Interval). Понадобится для воркеров:
     // удаление пользователей (1.6), очистка хранилища (1.5), сохранение и
     // retention результатов трансформаций (2.3, 2.4).
@@ -34,6 +37,7 @@ import { UsersModule } from '@/modules/users/users.module';
      *
      */
     UsersModule,
+    AuthModule,
   ],
 })
 export class AppModule {}

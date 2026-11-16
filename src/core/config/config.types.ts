@@ -62,4 +62,22 @@ export interface Config {
   SMTP_USER?: string;
   SMTP_PASSWORD?: string;
   SMTP_FROM: string;
+
+  /**
+   * Ключ HMAC для секретов из писем (коды OTP, токены magic link).
+   * Общий для всех «челленджей»: регистрация (1.0), вход (1.2), смена email (1.5).
+   * Разные сценарии разделяются префиксом в данных HMAC, а не разными ключами.
+   */
+  CHALLENGE_HMAC_KEY: string;
+
+  /**
+   * Registration (задание 1.0)
+   */
+  REGISTRATION_CONFIRMATION_ENABLED?: boolean;
+  REGISTRATION_CONFIRMATION_METHOD?: 'otp' | 'magic_link';
+  /** Страница фронтенда, куда ведёт magic link. Токен дописывается во фрагмент `#token=`. */
+  REGISTRATION_CONFIRM_URL?: string;
+  /** Rate limit на register и resend: не больше LIMIT запросов с одного IP за TTL мс. */
+  REGISTRATION_RATE_LIMIT?: number;
+  REGISTRATION_RATE_TTL?: number;
 }
